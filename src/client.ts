@@ -33,12 +33,13 @@ export class EpoOpsClient {
   private baseUrl: string;
   private httpClient: AxiosInstance;
   private token: OAuthToken | null = null;
+  private tokenCreatedAt: number | null = null;
   private maxRetries: number;
   private clientId: string;
   private clientSecret: string;
 
   constructor(config: EpoOpsConfig) {
-    this.baseUrl = config.baseUrl || 'https://ops.epo.org/3.2';
+    this.baseUrl = config.baseUrl || 'https://ops.epo.org/3.2/rest-services';
     this.maxRetries = config.maxRetries || 3;
     this.clientId = config.clientId;
     this.clientSecret = config.clientSecret;
@@ -56,9 +57,11 @@ export class EpoOpsClient {
       response => response,
       this.handleError.bind(this)
     );
+  }
 
-    // Initialize OAuth client
-    this.initializeOAuthClient();
+  // Initialize the client
+  async initialize(): Promise<void> {
+    await this.initializeOAuthClient();
   }
 
   private handleError(error: AxiosError): never {
@@ -102,7 +105,7 @@ export class EpoOpsClient {
             'Accept': 'application/json',
             'Connection': 'keep-alive',
             'Host': 'ops.epo.org',
-            'X-Target-URI': 'https://ops.epo.org/3.2'
+            'X-Target-URI': 'https://ops.epo.org/3.2/rest-services'
           }
         }
       );
@@ -111,13 +114,14 @@ export class EpoOpsClient {
         throw new AuthenticationError('Invalid token response');
       }
 
-      // Store token
+      // Store token and creation time
       this.token = {
         access_token: response.data.access_token,
         token_type: response.data.token_type || 'Bearer',
         expires_in: response.data.expires_in || 3600,
         scope: response.data.scope || 'ops'
       };
+      this.tokenCreatedAt = Date.now();
 
       // Update HTTP client with new token
       if (this.httpClient) {
@@ -289,29 +293,28 @@ export class EpoOpsClient {
           params: { q: query }
         });
 
+        const transformedData = this.transformClassificationSearchData(response.data);
+        
         // Validate response
-        return ClassificationResponseSchema.parse({
-          status: response.status,
-          data: response.data
-        });
+        return ClassificationResponseSchema.parse(transformedData);
       },
       { maxRetries: this.maxRetries }
     );
   }
 
   private transformBibliographicData(data: any): BibliographicData {
-    const doc = data['ops:world-patent-data']['exchange-documents'][0]['exchange-document'];
-    const biblio = doc['bibliographic-data'];
+    const doc = data?.['ops:world-patent-data']?.['exchange-documents']?.[0]?.['exchange-document'] || {};
+    const biblio = doc?.['bibliographic-data'] || {};
     
     return {
-      title: biblio['invention-title']['$'],
-      abstract: biblio['abstract']?.['$'] || '',
-      inventors: biblio.parties?.inventors?.inventor?.map((inv: any) => inv['inventor-name']['$']) || [],
-      applicants: biblio.parties?.applicants?.applicant?.map((app: any) => app['applicant-name']['$']) || [],
-      publicationDate: biblio['publication-reference']['document-id']['date'],
-      applicationDate: biblio['application-reference']['document-id']['date'],
-      classification: biblio['patent-classifications']['patent-classification']?.map((pc: any) => 
-        `${pc.section}${pc.class}${pc.subclass}`
+      title: biblio?.['invention-title']?.['$'] || '',
+      abstract: biblio?.['abstract']?.['$'] || '',
+      inventors: biblio?.parties?.inventors?.inventor?.map((inv: any) => inv?.['inventor-name']?.['$'] || '') || [],
+      applicants: biblio?.parties?.applicants?.applicant?.map((app: any) => app?.['applicant-name']?.['$'] || '') || [],
+      publicationDate: biblio?.['publication-reference']?.['document-id']?.['date'] || '',
+      applicationDate: biblio?.['application-reference']?.['document-id']?.['date'] || '',
+      classification: biblio?.['patent-classifications']?.['patent-classification']?.map((pc: any) => 
+        `${pc?.section || ''}${pc?.class || ''}${pc?.subclass || ''}`
       ) || []
     };
   }
@@ -356,20 +359,20 @@ export class EpoOpsClient {
 
   private transformSearchResults(data: any): SearchResponse {
     const searchData = data['ops:world-patent-data']['ops:biblio-search'];
-    const documents = searchData['ops:search-result']['exchange-documents'];
+    const documents = searchData?.['ops:search-result']?.['exchange-documents'] || [];
     
     return {
       status: 200,
       data: {
         query: '',
         results: documents.map((doc: any) => {
-          const exchangeDoc = doc['exchange-document'];
-          const biblio = exchangeDoc['bibliographic-data'];
+          const exchangeDoc = doc?.['exchange-document'] || {};
+          const biblio = exchangeDoc?.['bibliographic-data'] || {};
           return {
-            id: `${exchangeDoc['@doc-number']}${exchangeDoc['@kind']}`,
-            title: biblio['invention-title']?.['$'] || '',
-            abstract: biblio['abstract']?.['$'] || '',
-            publicationDate: biblio['publication-reference']['document-id']['date']
+            id: `${exchangeDoc?.['@doc-number'] || ''}${exchangeDoc?.['@kind'] || ''}`,
+            title: biblio?.['invention-title']?.['$'] || '',
+            abstract: biblio?.['abstract']?.['$'] || '',
+            publicationDate: biblio?.['publication-reference']?.['document-id']?.['date'] || ''
           };
         })
       }
@@ -377,17 +380,17 @@ export class EpoOpsClient {
   }
 
   private transformClassificationData(data: any): ClassificationResponse {
-    const classData = data['ops:world-patent-data']['ops:classification-data']['classification-item'];
+    const classData = data?.['ops:world-patent-data']?.['ops:classification-data']?.['classification-item'] || {};
     
     return {
       status: 200,
       data: {
-        class: classData['classification-symbol'],
-        title: classData['title-part']?.['$'] || '',
-        description: classData['description-part']?.['$'] || '',
-        subclasses: (classData['child-items'] || []).map((item: any) => ({
-          code: item['classification-symbol'],
-          title: item['title-part']?.['$'] || ''
+        class: classData?.['classification-symbol'] || '',
+        title: classData?.['title-part']?.['$'] || '',
+        description: classData?.['description-part']?.['$'] || '',
+        subclasses: (classData?.['child-items'] || []).map((item: any) => ({
+          code: item?.['classification-symbol'] || '',
+          title: item?.['title-part']?.['$'] || ''
         }))
       }
     };
@@ -412,6 +415,39 @@ export class EpoOpsClient {
     };
   }
 
+  private transformClassificationSearchData(data: any): ClassificationResponse {
+    const searchData = data?.['ops:world-patent-data']?.['ops:classification-search'] || {};
+    const results = searchData?.['ops:search-result']?.['classification-item'] || [];
+    
+    // If no results, return a default response
+    if (!results.length) {
+      return {
+        status: 200,
+        data: {
+          class: '',
+          title: 'No results found',
+          description: '',
+          subclasses: []
+        }
+      };
+    }
+
+    // Use the first result as the main classification
+    const firstResult = results[0];
+    return {
+      status: 200,
+      data: {
+        class: firstResult?.['classification-symbol'] || '',
+        title: firstResult?.['title-part']?.['$'] || '',
+        description: firstResult?.['description-part']?.['$'] || '',
+        subclasses: results.slice(1).map((item: any) => ({
+          code: item?.['classification-symbol'] || '',
+          title: item?.['title-part']?.['$'] || ''
+        }))
+      }
+    };
+  }
+
   private async ensureToken(): Promise<void> {
     if (!this.token) {
       throw new AuthenticationError('OAuth token not initialized');
@@ -427,8 +463,9 @@ export class EpoOpsClient {
   }
 
   private isTokenExpired(): boolean {
-    if (!this.token) return true;
+    if (!this.token || !this.tokenCreatedAt) return true;
     // Add a small buffer (5 minutes) to prevent edge cases
-    return Date.now() >= (this.token.expires_in * 1000) - 300000;
+    const expirationTime = this.tokenCreatedAt + (this.token.expires_in * 1000);
+    return Date.now() >= expirationTime - 300000; // 5 minutes buffer
   }
 } 
