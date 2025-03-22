@@ -1,6 +1,6 @@
 {
   "name": "epo-ops-sdk",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "TypeScript SDK for the European Patent Office's Open Patent Services (OPS) API with OAuth support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -44,7 +44,6 @@
   "dependencies": {
     "axios": "^1.8.4",
     "dotenv": "^16.4.7",
-    "epo-ops-sdk": "^0.1.5",
     "openid-client": "^5.7.1",
     "zod": "^3.22.4"
   },
