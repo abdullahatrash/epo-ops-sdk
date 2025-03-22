@@ -16,8 +16,7 @@ import { EpoOpsClient } from 'epo-ops-sdk';
 // Initialize the client
 const client = new EpoOpsClient({
   clientId: 'your-client-id',
-  clientSecret: 'your-client-secret',
-  apiKey: 'your-api-key'
+  clientSecret: 'your-client-secret'
 });
 
 // Search for patents

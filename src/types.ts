@@ -1,5 +1,4 @@
 export interface EpoOpsConfig {
-  apiKey: string;
   baseUrl?: string;
   clientId: string;
   clientSecret: string;

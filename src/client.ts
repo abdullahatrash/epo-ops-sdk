@@ -31,7 +31,6 @@ import {
 import { z } from 'zod';
 
 export class EpoOpsClient {
-  private apiKey: string;
   private baseUrl: string;
   private httpClient: AxiosInstance;
   private token: OAuthToken | null = null;
@@ -39,7 +38,6 @@ export class EpoOpsClient {
   private maxRetries: number;
 
   constructor(config: EpoOpsConfig) {
-    this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl || 'https://ops.epo.org/3.2';
     this.maxRetries = config.maxRetries || 3;
 
@@ -47,7 +45,6 @@ export class EpoOpsClient {
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json'
       }
     });
