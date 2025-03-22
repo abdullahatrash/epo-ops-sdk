@@ -1,5 +1,4 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { Issuer, Client } from 'openid-client';
 import { withRetry } from './utils/retry';
 import { EpoOpsError, AuthenticationError, RateLimitError, ValidationError } from './errors';
 import {
@@ -34,7 +33,6 @@ export class EpoOpsClient {
   private baseUrl: string;
   private httpClient: AxiosInstance;
   private token: OAuthToken | null = null;
-  private client: Client | null = null;
   private maxRetries: number;
 
   constructor(config: EpoOpsConfig) {
@@ -86,52 +84,30 @@ export class EpoOpsClient {
 
   private async initializeOAuthClient(config: EpoOpsConfig): Promise<void> {
     try {
-      const issuer = await Issuer.discover('https://ops.epo.org/3.2');
+      // EPO OPS uses a simple OAuth client credentials flow
+      const tokenResponse = await axios.post(
+        'https://ops.epo.org/3.2/auth/token',
+        'grant_type=client_credentials&scope=ops',
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')}`
+          }
+        }
+      );
+
+      this.token = tokenResponse.data;
       
-      this.client = new issuer.Client({
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        redirect_uris: config.redirectUri ? [config.redirectUri] : [],
-        response_types: ['code'],
-        grant_types: ['authorization_code', 'refresh_token'],
-        token_endpoint_auth_method: 'client_secret_basic',
-        scope: 'ops'
-      });
+      // Update HTTP client with token
+      if (this.token && this.token.access_token) {
+        this.httpClient.defaults.headers.common['Authorization'] = `Bearer ${this.token.access_token}`;
+      } else {
+        throw new AuthenticationError('Invalid token response');
+      }
     } catch (error) {
+      console.error('OAuth initialization error:', error);
       throw new AuthenticationError('Failed to initialize OAuth client');
     }
-  }
-
-  private async ensureToken(): Promise<void> {
-    if (!this.client) {
-      throw new AuthenticationError('OAuth client not initialized');
-    }
-
-    if (!this.token || this.isTokenExpired()) {
-      try {
-        const tokenSet = await this.client.grant({
-          grant_type: 'client_credentials',
-          scope: 'ops'
-        });
-
-        this.token = {
-          access_token: tokenSet.access_token!,
-          token_type: tokenSet.token_type!,
-          expires_in: tokenSet.expires_in!,
-          scope: tokenSet.scope
-        };
-
-        this.httpClient.defaults.headers.common['Authorization'] = `Bearer ${this.token.access_token}`;
-      } catch (error) {
-        throw new AuthenticationError('Failed to obtain OAuth token');
-      }
-    }
-  }
-
-  private isTokenExpired(): boolean {
-    if (!this.token) return true;
-    // Add a small buffer (5 minutes) to prevent edge cases
-    return Date.now() >= (this.token.expires_in * 1000) - 300000;
   }
 
   async searchPatents(query: string, options: SearchOptions = {}): Promise<SearchResponse> {
@@ -410,5 +386,29 @@ export class EpoOpsClient {
         }
       }
     };
+  }
+
+  private async ensureToken(): Promise<void> {
+    if (!this.token) {
+      throw new AuthenticationError('OAuth token not initialized');
+    }
+
+    if (this.isTokenExpired()) {
+      try {
+        await this.initializeOAuthClient({
+          clientId: '',
+          clientSecret: '',
+          baseUrl: ''
+        });
+      } catch (error) {
+        throw new AuthenticationError('Failed to refresh OAuth token');
+      }
+    }
+  }
+
+  private isTokenExpired(): boolean {
+    if (!this.token) return true;
+    // Add a small buffer (5 minutes) to prevent edge cases
+    return Date.now() >= (this.token.expires_in * 1000) - 300000;
   }
 } 
