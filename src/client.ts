@@ -419,13 +419,6 @@ export class EpoOpsClient {
 
     if (this.isTokenExpired()) {
       try {
-        // Store the current credentials
-        const authHeader = this.httpClient.defaults.headers.common['Authorization'];
-        const currentConfig = {
-          clientId: typeof authHeader === 'string' ? authHeader.split(' ')[1] : '',
-          clientSecret: typeof authHeader === 'string' ? authHeader.split(' ')[1] : '',
-          baseUrl: this.baseUrl
-        };
         await this.initializeOAuthClient();
       } catch (error) {
         throw new AuthenticationError('Failed to refresh OAuth token');
