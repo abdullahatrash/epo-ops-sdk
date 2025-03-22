@@ -114,8 +114,14 @@ export class EpoOpsClient {
         scope: tokenResponse.data.scope
       };
       
-      // Update HTTP client with token
-      this.httpClient.defaults.headers.common['Authorization'] = `Bearer ${this.token.access_token}`;
+      // Update HTTP client with token and required headers
+      this.httpClient.defaults.headers.common = {
+        'Authorization': `Bearer ${this.token.access_token}`,
+        'Accept': 'application/json',
+        'Connection': 'Keep-Alive',
+        'Host': 'ops.epo.org',
+        'X-Target-URI': 'http://ops.epo.org'
+      };
     } catch (error) {
       console.error('OAuth initialization error:', error);
       if (axios.isAxiosError(error) && error.response?.data) {
