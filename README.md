@@ -8,15 +8,40 @@ A TypeScript SDK for the European Patent Office's Open Patent Services (OPS) API
 npm install epo-ops-sdk
 ```
 
+## Authentication
+
+The SDK uses OAuth 2.0 client credentials flow for authentication. You need to:
+
+1. Register at the [EPO OPS website](https://developers.epo.org/) to get your credentials
+2. Create a `.env` file in your project root with your credentials:
+   ```
+   EPO_CLIENT_ID=your_client_id
+   EPO_CLIENT_SECRET=your_client_secret
+   ```
+
+### Authentication Requirements
+
+- Valid client ID and client secret from EPO OPS
+- Proper headers including:
+  - Content-Type: application/x-www-form-urlencoded
+  - Accept: application/json
+  - Connection: Keep-Alive
+  - Host: ops.epo.org
+  - X-Target-URI: http://ops.epo.org
+
 ## Usage
 
 ```typescript
 import { EpoOpsClient } from 'epo-ops-sdk';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 // Initialize the client
 const client = new EpoOpsClient({
-  clientId: 'your-client-id',
-  clientSecret: 'your-client-secret'
+  clientId: process.env.EPO_CLIENT_ID,
+  clientSecret: process.env.EPO_CLIENT_SECRET
 });
 
 // Search for patents
@@ -68,7 +93,7 @@ const converted = await client.convertNumber(
 
 ## Features
 
-- OAuth 2.0 authentication
+- OAuth 2.0 authentication with automatic token refresh
 - Patent search
 - Bibliographic data retrieval
 - Claims retrieval
@@ -78,6 +103,25 @@ const converted = await client.convertNumber(
 - Patent number format conversion
 - TypeScript support with full type definitions
 - Zod schema validation for responses
+
+## Error Handling
+
+The SDK includes comprehensive error handling for common issues:
+
+- `AuthenticationError`: When there are issues with OAuth authentication
+- `RateLimitError`: When API rate limits are exceeded
+- `ValidationError`: When request parameters are invalid
+- `EpoOpsError`: For general API errors
+
+## Troubleshooting
+
+If you encounter authentication issues:
+
+1. Verify your credentials are correct in the `.env` file
+2. Check that your client ID and secret are properly formatted (no extra spaces)
+3. Ensure you have the correct permissions for the OPS API
+4. Verify your network connection to ops.epo.org
+5. Check if your credentials have expired
 
 ## API Documentation
 
