@@ -59,8 +59,7 @@ export class EpoOpsClient {
     );
   }
 
-  // Initialize the client
-  async initialize(): Promise<void> {
+  public async initialize(): Promise<void> {
     await this.initializeOAuthClient();
   }
 
@@ -89,15 +88,32 @@ export class EpoOpsClient {
     throw new EpoOpsError('Network error occurred');
   }
 
-  public async initializeOAuthClient(): Promise<void> {
+  private async initializeOAuthClient(): Promise<void> {
     try {
-      const tokenEndpoint = `${this.baseUrl}/auth/accesstoken`;
-      const response = await this.httpClient.post(tokenEndpoint, {
-        grant_type: 'client_credentials',
-        client_id: this.clientId,
-        client_secret: this.clientSecret
-      });
+      // Create Basic Auth header
+      const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
 
+      // Make request to token endpoint
+      const response = await axios.post(
+        'https://ops.epo.org/3.2/auth/accesstoken',
+        'grant_type=client_credentials&scope=ops',
+        {
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'Connection': 'keep-alive',
+            'Host': 'ops.epo.org',
+            'X-Target-URI': 'https://ops.epo.org/3.2/rest-services'
+          }
+        }
+      );
+
+      if (!response.data || !response.data.access_token) {
+        throw new AuthenticationError('Invalid token response');
+      }
+
+      // Store token and creation time
       this.token = {
         access_token: response.data.access_token,
         token_type: response.data.token_type || 'Bearer',
@@ -112,9 +128,9 @@ export class EpoOpsClient {
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        console.error('OAuth initialization error:', error);
         throw new AuthenticationError(
-          `Failed to initialize OAuth client: ${error.response?.data?.error || error.message}`,
-          error.response?.status || 500
+          `Failed to initialize OAuth client: ${error.response?.data?.message || 'Unknown error'}`
         );
       }
       throw error;
