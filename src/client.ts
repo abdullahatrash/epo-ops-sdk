@@ -34,10 +34,14 @@ export class EpoOpsClient {
   private httpClient: AxiosInstance;
   private token: OAuthToken | null = null;
   private maxRetries: number;
+  private clientId: string;
+  private clientSecret: string;
 
   constructor(config: EpoOpsConfig) {
     this.baseUrl = config.baseUrl || 'https://ops.epo.org/3.2';
     this.maxRetries = config.maxRetries || 3;
+    this.clientId = config.clientId;
+    this.clientSecret = config.clientSecret;
 
     // Initialize HTTP client
     this.httpClient = axios.create({
@@ -54,7 +58,7 @@ export class EpoOpsClient {
     );
 
     // Initialize OAuth client
-    this.initializeOAuthClient(config);
+    this.initializeOAuthClient();
   }
 
   private handleError(error: AxiosError): never {
@@ -82,52 +86,51 @@ export class EpoOpsClient {
     throw new EpoOpsError('Network error occurred');
   }
 
-  private async initializeOAuthClient(config: EpoOpsConfig): Promise<void> {
+  private async initializeOAuthClient(): Promise<void> {
     try {
-      // EPO OPS uses a simple OAuth client credentials flow
-      const tokenResponse = await axios.post(
+      // Create Basic Auth header
+      const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+
+      // Make request to token endpoint
+      const response = await axios.post(
         'https://ops.epo.org/3.2/auth/accesstoken',
-        new URLSearchParams({
-          grant_type: 'client_credentials',
-          scope: 'ops'
-        }).toString(),
+        'grant_type=client_credentials&scope=ops',
         {
           headers: {
+            'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')}`,
             'Accept': 'application/json',
-            'Connection': 'Keep-Alive',
+            'Connection': 'keep-alive',
             'Host': 'ops.epo.org',
-            'X-Target-URI': 'http://ops.epo.org'
+            'X-Target-URI': 'https://ops.epo.org/3.2'
           }
         }
       );
 
-      if (!tokenResponse.data || !tokenResponse.data.access_token) {
-        throw new AuthenticationError('Invalid token response format');
+      if (!response.data || !response.data.access_token) {
+        throw new AuthenticationError('Invalid token response');
       }
 
+      // Store token
       this.token = {
-        access_token: tokenResponse.data.access_token,
-        token_type: tokenResponse.data.token_type || 'Bearer',
-        expires_in: tokenResponse.data.expires_in || 3600,
-        scope: tokenResponse.data.scope
+        access_token: response.data.access_token,
+        token_type: response.data.token_type || 'Bearer',
+        expires_in: response.data.expires_in || 3600,
+        scope: response.data.scope || 'ops'
       };
-      
-      // Update HTTP client with token and required headers
-      this.httpClient.defaults.headers.common = {
-        'Authorization': `Bearer ${this.token.access_token}`,
-        'Accept': 'application/json',
-        'Connection': 'Keep-Alive',
-        'Host': 'ops.epo.org',
-        'X-Target-URI': 'http://ops.epo.org'
-      };
-    } catch (error) {
-      console.error('OAuth initialization error:', error);
-      if (axios.isAxiosError(error) && error.response?.data) {
-        throw new AuthenticationError(`Failed to initialize OAuth client: ${error.response.data.message || 'Unknown error'}`);
+
+      // Update HTTP client with new token
+      if (this.httpClient) {
+        this.httpClient.defaults.headers.common['Authorization'] = `Bearer ${this.token.access_token}`;
       }
-      throw new AuthenticationError('Failed to initialize OAuth client');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('OAuth initialization error:', error);
+        throw new AuthenticationError(
+          `Failed to initialize OAuth client: ${error.response?.data?.message || 'Unknown error'}`
+        );
+      }
+      throw error;
     }
   }
 
@@ -423,7 +426,7 @@ export class EpoOpsClient {
           clientSecret: typeof authHeader === 'string' ? authHeader.split(' ')[1] : '',
           baseUrl: this.baseUrl
         };
-        await this.initializeOAuthClient(currentConfig);
+        await this.initializeOAuthClient();
       } catch (error) {
         throw new AuthenticationError('Failed to refresh OAuth token');
       }
