@@ -1,0 +1,53 @@
+{
+  "name": "epo-ops-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the European Patent Office's Open Patent Services (OPS) API with OAuth support",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "OPS.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16.15.1"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint . --ext .ts",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run lint"
+  },
+  "keywords": [
+    "epo",
+    "ops",
+    "api",
+    "typescript",
+    "patent",
+    "espacenet",
+    "oauth"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/epo-ops-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/epo-ops-sdk/issues"
+  },
+  "homepage": "https://github.com/yourusername/epo-ops-sdk#readme",
+  "dependencies": {
+    "axios": "^1.8.4",
+    "openid-client": "^5.7.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.3.3"
+  }
+}
